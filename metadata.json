@@ -1,0 +1,5 @@
+{
+  "name": "Shinobi: Shadows Duel",
+  "description": "A mobile-first, reaction-based samurai dueling game inspired by Sekiro. Features posture mechanics, parries, and AI-driven guidance.",
+  "requestFramePermissions": []
+}
