@@ -11,8 +11,8 @@ export enum CombatState {
 
 export enum AttackType {
   NORMAL = 'NORMAL', // Can be blocked or parried
-  PERILOUS_SWEEP = 'PERILOUS_SWEEP', // Must jump/dodge
-  PERILOUS_THRUST = 'PERILOUS_THRUST', // Must deflect perfectly or dodge
+  PERILOUS_SWEEP = 'PERILOUS_SWEEP', // Must jump
+  PERILOUS_THRUST = 'PERILOUS_THRUST', // Must deflect perfectly
 }
 
 export enum PlayerAction {
@@ -20,7 +20,7 @@ export enum PlayerAction {
   BLOCK = 'BLOCK',
   PARRY = 'PARRY',
   ATTACK = 'ATTACK',
-  DODGE = 'DODGE',
+  JUMP = 'JUMP',
 }
 
 export interface EntityStats {
@@ -28,6 +28,7 @@ export interface EntityStats {
   maxHp: number;
   posture: number;
   maxPosture: number;
+  state: 'IDLE' | 'ATTACK' | 'DEFLECT' | 'HIT' | 'DEAD' | 'JUMPING';
 }
 
 export interface GameLog {
