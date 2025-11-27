@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CombatUI } from './components/CombatUI';
 import { GameScene } from './components/GameScene';
@@ -10,7 +11,7 @@ import {
   PlayerAction, 
   GameLog 
 } from './types';
-import { GAME_CONFIG, BOSS_NAMES } from './constants';
+import { GAME_CONFIG, BOSS_NAMES, BOSS_PATTERNS, AttackPattern } from './constants';
 
 // Initial states
 const initialPlayer: EntityStats = {
@@ -43,6 +44,7 @@ const App: React.FC = () => {
   const [subMessage, setSubMessage] = useState<string>('');
   const [logs, setLogs] = useState<GameLog[]>([]);
   const [showDeathScreen, setShowDeathScreen] = useState(false);
+  const [bossIndex, setBossIndex] = useState(0);
   const [bossName, setBossName] = useState(BOSS_NAMES[0]);
   const [advice, setAdvice] = useState<string>("");
   const [deathCount, setDeathCount] = useState(0);
@@ -53,6 +55,7 @@ const App: React.FC = () => {
   const stateRef = useRef(combatState);
   const blockStartRef = useRef<number>(0);
   const isBlockingRef = useRef(false);
+  const isProcessingComboRef = useRef(false);
 
   // Sync refs
   useEffect(() => { playerRef.current = player; }, [player]);
@@ -74,12 +77,10 @@ const App: React.FC = () => {
   };
 
   const addLog = (msg: string, type: GameLog['type'] = 'info') => {
-    setLogs(prev => [{ message: msg, type, timestamp: Date.now() }, ...prev].slice(0, 3));
+    setLogs(prev => [{ message: msg, type, timestamp: Date.now() }, ...prev].slice(3));
   };
 
   const resetGame = async () => {
-    const randomBoss = BOSS_NAMES[Math.floor(Math.random() * BOSS_NAMES.length)];
-    setBossName(randomBoss);
     setPlayer(initialPlayer);
     setEnemy(initialEnemy);
     setCombatState(CombatState.IDLE);
@@ -87,9 +88,23 @@ const App: React.FC = () => {
     setOverlayMessage('');
     setSubMessage('');
     setAdvice('');
+    isProcessingComboRef.current = false;
     
-    const taunt = await getBossTaunt(randomBoss);
-    addLog(`${randomBoss}: "${taunt}"`, 'system');
+    // Taunt
+    const taunt = await getBossTaunt(bossName);
+    addLog(`${bossName}: "${taunt}"`, 'system');
+  };
+
+  const nextBoss = () => {
+    const nextIdx = (bossIndex + 1) % BOSS_NAMES.length;
+    setBossIndex(nextIdx);
+    setBossName(BOSS_NAMES[nextIdx]);
+    
+    // Increase enemy stats slightly
+    initialEnemy.maxHp += 50;
+    initialEnemy.maxPosture += 20;
+    
+    resetGame();
   };
 
   const handlePlayerDeath = async (reason: string) => {
@@ -105,7 +120,7 @@ const App: React.FC = () => {
     setCombatState(CombatState.VICTORY);
     setEnemy(e => ({ ...e, state: 'DEAD' }));
     setOverlayMessage('ENEMY DEFEATED');
-    setSubMessage('Spirit Released');
+    setSubMessage('Shinobi Execution');
   };
 
   // --- Game Loop (Posture & Recovery) ---
@@ -123,60 +138,98 @@ const App: React.FC = () => {
             posture: Math.max(0, e.posture - GAME_CONFIG.POSTURE_RECOVERY_RATE)
         }));
 
-    }, 1000 / 60); // 60 FPS update
+    }, 1000 / 60);
     return () => clearInterval(loop);
   }, [combatState]);
 
-  // --- Enemy AI Attack Loop ---
+  // --- Enemy AI & Combo System ---
   useEffect(() => {
     if (combatState === CombatState.VICTORY || combatState === CombatState.DEFEAT) return;
 
     const checkAttack = setInterval(() => {
-        if (combatState === CombatState.IDLE) {
+        if (combatState === CombatState.IDLE && !isProcessingComboRef.current) {
             // Chance to attack depending on how aggressive we want the AI
             if (Math.random() > 0.4) {
-                initiateEnemyAttack();
+                startEnemyCombo();
             }
         }
     }, 1000);
 
     return () => clearInterval(checkAttack);
-  }, [combatState]);
+  }, [combatState, bossIndex]);
 
 
-  const initiateEnemyAttack = () => {
-        const roll = Math.random();
-        let type = AttackType.NORMAL;
-        let windupTime = GAME_CONFIG.TIMING.WINDUP_NORMAL;
+  const startEnemyCombo = async () => {
+      isProcessingComboRef.current = true;
+      
+      // Select a pattern based on boss level
+      // Clamp bossIndex to available patterns in case array out of bounds
+      const level = Math.min(bossIndex, 4);
+      const patterns = BOSS_PATTERNS[level] || BOSS_PATTERNS[0];
+      const pattern: AttackPattern = patterns[Math.floor(Math.random() * patterns.length)];
 
-        if (roll > 0.7) {
-            // Perilous Attack
-            // 50/50 split between Sweep and Thrust for variety if implemented later, 
-            // but focused on Sweep for Jump mechanic now.
-            type = AttackType.PERILOUS_SWEEP; 
-            windupTime = GAME_CONFIG.TIMING.WINDUP_PERILOUS;
-            playSound('PERILOUS');
-        }
+      for (let i = 0; i < pattern.length; i++) {
+          const move = pattern[i];
 
-        setCurrentAttackType(type);
-        setCombatState(CombatState.ENEMY_WINDUP);
-        // Maybe a windup pose
-        setEnemy(e => ({ ...e, state: 'IDLE' })); 
+          // Check if game ended mid-combo
+          if (stateRef.current === CombatState.VICTORY || stateRef.current === CombatState.DEFEAT) break;
 
-        setTimeout(() => {
-            // If still winding up (game didn't end/pause), execute
-            if (stateRef.current === CombatState.ENEMY_WINDUP) {
-                executeEnemyAttack(type);
-            }
-        }, windupTime);
+          if (move === 'DELAY') {
+              // Pause between hits
+              await new Promise(r => setTimeout(r, GAME_CONFIG.TIMING.COMBO_DELAY));
+              continue;
+          }
+
+          const isSweep = move === 'SWEEP';
+          await executeAttackStep(isSweep ? AttackType.PERILOUS_SWEEP : AttackType.NORMAL);
+          
+          // Small breathing room between combo hits if not explicit delay
+          await new Promise(r => setTimeout(r, 200));
+      }
+
+      setCombatState(CombatState.IDLE);
+      setEnemy(e => ({ ...e, state: 'IDLE' }));
+      isProcessingComboRef.current = false;
+  };
+
+  const executeAttackStep = (type: AttackType): Promise<void> => {
+      return new Promise((resolve) => {
+          // 1. TELEGRAPH (Windup)
+          setCurrentAttackType(type);
+          setCombatState(CombatState.ENEMY_WINDUP);
+          setEnemy(e => ({ ...e, state: 'IDLE' })); // Visual state handled by CombatState.WINDUP in GameScene
+          
+          if (type === AttackType.PERILOUS_SWEEP) playSound('PERILOUS');
+
+          // The windup duration depends on boss level (higher level = slightly faster windups)
+          const speedMod = Math.min(bossIndex * 50, 300); 
+          const windupTime = Math.max(GAME_CONFIG.TIMING.WINDUP_FAST, GAME_CONFIG.TIMING.WINDUP_BASE - speedMod);
+
+          setTimeout(() => {
+              if (stateRef.current === CombatState.DEFEAT) return resolve();
+              // If enemy was posture broken during windup, stop.
+              if (stateRef.current === CombatState.DEATHBLOW_WINDOW) return resolve();
+
+              // 2. STRIKE (Active Frames)
+              setCombatState(CombatState.ENEMY_ATTACKING);
+              setEnemy(e => ({ ...e, state: 'ATTACK' })); // Triggers the swing animation
+
+              setTimeout(() => {
+                 resolveHit(type);
+                 
+                 // 3. RECOVERY
+                 setTimeout(() => {
+                    resolve();
+                 }, GAME_CONFIG.TIMING.ATTACK_DURATION);
+                 
+              }, GAME_CONFIG.TIMING.ATTACK_DURATION);
+
+          }, windupTime);
+      });
   };
 
   // --- Resolve Attack Impact ---
-  const executeEnemyAttack = (type: AttackType) => {
-    setCombatState(CombatState.ENEMY_ATTACKING);
-    setEnemy(e => ({ ...e, state: 'ATTACK' }));
-    
-    setTimeout(() => {
+  const resolveHit = (type: AttackType) => {
        if (stateRef.current !== CombatState.ENEMY_ATTACKING) return;
 
        const now = Date.now();
@@ -188,19 +241,14 @@ const App: React.FC = () => {
        let hit = false;
        let msg = "";
 
-       // LOGIC TREE
-       
        if (type === AttackType.PERILOUS_SWEEP) {
            if (isJumping) {
-               // SUCCESSFUL JUMP COUNTER
                setEnemy(e => ({ 
                    ...e, 
                    posture: e.posture + GAME_CONFIG.POSTURE_DAMAGE.JUMP_COUNTER 
                }));
                addLog("Jump Counter!", 'success');
-               // Player lands a hit automatically or just avoids damage? Let's just avoid damage + posture dmg
            } else {
-               // Failed to jump
                hit = true;
                damage = GAME_CONFIG.DAMAGE.HEAVY_ATTACK;
                msg = "Swept!";
@@ -208,14 +256,13 @@ const App: React.FC = () => {
        } 
        else if (type === AttackType.NORMAL) {
            if (isJumping) {
-               // Can't jump normal attacks, you get hit in air
                hit = true;
                damage = GAME_CONFIG.DAMAGE.LIGHT_ATTACK;
                msg = "Air Hit!";
            }
            else if (isBlocking) {
+               // Parry window is generous but requires button press relatively recently
                if (blockDuration < GAME_CONFIG.PARRY_WINDOW_MS) {
-                   // PERFECT PARRY
                    setEnemy(e => ({ 
                        ...e, 
                        posture: e.posture + GAME_CONFIG.POSTURE_DAMAGE.PERFECT_PARRY,
@@ -227,7 +274,6 @@ const App: React.FC = () => {
                    playSound('CLASH');
                    addLog("Perfect Deflect!", 'success');
                } else {
-                   // BLOCK
                    setPlayer(p => ({ 
                        ...p, 
                        posture: p.posture + GAME_CONFIG.POSTURE_DAMAGE.ATTACK_ON_BLOCK,
@@ -257,23 +303,24 @@ const App: React.FC = () => {
            addLog(msg, 'danger');
            setTimeout(() => setPlayer(p => ({...p, state: 'IDLE'})), 500);
        }
-
-       // Check Death
-       if (playerRef.current.hp <= 0 || playerRef.current.posture >= playerRef.current.maxPosture) {
-           handlePlayerDeath(hit ? "Cut down" : "Posture broken");
-       } else {
-           setCombatState(CombatState.ENEMY_RECOVERING);
-           setTimeout(() => {
-               setCombatState(CombatState.IDLE);
-               setEnemy(e => ({...e, state: 'IDLE'}));
-           }, GAME_CONFIG.TIMING.RECOVERY_HIT);
+       
+       // Check for Deathblow trigger from posture break on Jump Counter/Parry
+       if (enemyRef.current.posture >= enemyRef.current.maxPosture) {
+           triggerDeathblowWindow();
        }
 
-    }, GAME_CONFIG.TIMING.ATTACK_DURATION);
+       if (playerRef.current.hp <= 0 || playerRef.current.posture >= playerRef.current.maxPosture) {
+           handlePlayerDeath(hit ? "Cut down" : "Posture broken");
+       }
+  };
+  
+  const triggerDeathblowWindow = () => {
+       setCombatState(CombatState.DEATHBLOW_WINDOW);
+       setEnemy(e => ({...e, posture: e.maxPosture}));
+       playSound('PERILOUS'); // Re-using heavy sound for impact
   };
 
   // --- Input Handlers ---
-
   const handleAction = useCallback((action: PlayerAction) => {
     if (combatState === CombatState.DEFEAT || combatState === CombatState.VICTORY) return;
 
@@ -294,37 +341,63 @@ const App: React.FC = () => {
 
     if (action === PlayerAction.ATTACK) {
         setPlayer(p => ({ ...p, state: 'ATTACK' }));
-        setPlayerActionEffect('ATTACK'); // Visual effect
+        setPlayerActionEffect('ATTACK'); 
         setTimeout(() => setPlayerActionEffect(null), 200);
         setTimeout(() => setPlayer(p => ({ ...p, state: 'IDLE' })), 200);
 
-        // Deathblow Check
         if (combatState === CombatState.DEATHBLOW_WINDOW) {
              handleVictory();
              return;
         }
 
-        // Normal Attack Logic
-        // Can only hit if enemy is IDLE, RECOVERING, or WINDUP
-        // Attacking into an ATTACK trades or gets stuffed usually, simplified here:
-        if (combatState === CombatState.IDLE || combatState === CombatState.ENEMY_RECOVERING || combatState === CombatState.ENEMY_WINDUP) {
-            setEnemy(e => ({ 
+        // --- ATTACK LOGIC ---
+        // 1. Counter Hit (During Windup or Recovery) - Always Hits
+        if (combatState === CombatState.ENEMY_WINDUP || combatState === CombatState.ENEMY_RECOVERING) {
+             setEnemy(e => ({ 
                 ...e, 
                 hp: e.hp - GAME_CONFIG.DAMAGE.LIGHT_ATTACK, 
-                posture: e.posture + 5, 
+                posture: e.posture + GAME_CONFIG.POSTURE_DAMAGE.ENEMY_HIT, 
                 state: 'HIT' 
             }));
             setTimeout(() => setEnemy(e => ({ ...e, state: 'IDLE' })), 200);
-            addLog("Slash!", 'info');
+            addLog("Counter Slash!", 'info');
+            playSound('HIT');
+        } 
+        // 2. Neutral Game - Chance to Block
+        else if (combatState === CombatState.IDLE) {
+            // Random chance to block based on config
+            const willBlock = Math.random() < GAME_CONFIG.ENEMY_DEFLECT_CHANCE;
             
-            if (enemyRef.current.hp <= 0) {
-                setCombatState(CombatState.DEATHBLOW_WINDOW);
-                setEnemy(e => ({...e, posture: e.maxPosture}));
+            if (willBlock) {
+                // Enemy Blocks
+                setEnemy(e => ({
+                    ...e,
+                    posture: e.posture + GAME_CONFIG.POSTURE_DAMAGE.ENEMY_BLOCK,
+                    state: 'DEFLECT'
+                }));
+                setTimeout(() => setEnemy(e => ({...e, state: 'IDLE'})), 200);
+                addLog("Enemy Deflected", 'info');
+                playSound('CLASH');
+            } else {
+                // Clean Hit
+                setEnemy(e => ({ 
+                    ...e, 
+                    hp: e.hp - GAME_CONFIG.DAMAGE.LIGHT_ATTACK, 
+                    posture: e.posture + GAME_CONFIG.POSTURE_DAMAGE.ENEMY_HIT, 
+                    state: 'HIT' 
+                }));
+                setTimeout(() => setEnemy(e => ({ ...e, state: 'IDLE' })), 200);
+                addLog("Slash!", 'info');
+                playSound('HIT');
             }
         } else {
-            // Enemy Blocking/Hyperarmor during attack
-            setEnemy(e => ({ ...e, hp: e.hp - 2 })); // Chip damage
-            addLog("Enemy Guarding", 'info');
+            // Enemy Attacking (Trading or invulnerable frames)
+             addLog("Clash!", 'info');
+        }
+        
+        // Check Deathblow Condition (HP <= 0 OR Posture Break)
+        if (enemyRef.current.hp <= 0 || enemyRef.current.posture >= enemyRef.current.maxPosture) {
+            triggerDeathblowWindow();
         }
     }
   }, [combatState]);
@@ -335,7 +408,6 @@ const App: React.FC = () => {
           setPlayer(p => ({ ...p, state: 'IDLE' }));
       }
   }, []);
-
 
   return (
     <div className="relative w-full h-screen bg-black text-white overflow-hidden select-none touch-none">
@@ -378,7 +450,8 @@ const App: React.FC = () => {
       {combatState === CombatState.VICTORY && (
         <div className="absolute inset-0 z-50 bg-black/80 flex flex-col items-center justify-center pointer-events-auto">
             <h1 className="text-5xl text-center font-black text-yellow-500 mb-2 tracking-widest drop-shadow-lg font-serif">{overlayMessage}</h1>
-            <button onClick={resetGame} className="mt-12 px-8 py-3 bg-red-900/50 hover:bg-red-800 text-white border border-red-700 rounded transition-colors font-serif tracking-widest">
+            <p className="text-gray-400 mb-8 font-serif">{subMessage}</p>
+            <button onClick={nextBoss} className="mt-4 px-8 py-3 bg-red-900/50 hover:bg-red-800 text-white border border-red-700 rounded transition-colors font-serif tracking-widest">
                 NEXT DUEL
             </button>
         </div>
