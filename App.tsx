@@ -162,8 +162,6 @@ const App: React.FC = () => {
   const startEnemyCombo = async () => {
       isProcessingComboRef.current = true;
       
-      // Select a pattern based on boss level
-      // Clamp bossIndex to available patterns in case array out of bounds
       const level = Math.min(bossIndex, 4);
       const patterns = BOSS_PATTERNS[level] || BOSS_PATTERNS[0];
       const pattern: AttackPattern = patterns[Math.floor(Math.random() * patterns.length)];
@@ -194,10 +192,10 @@ const App: React.FC = () => {
 
   const executeAttackStep = (type: AttackType): Promise<void> => {
       return new Promise((resolve) => {
-          // 1. TELEGRAPH (Windup)
+          // 1. TELEGRAPH (Windup) - Player sees this and prepares
           setCurrentAttackType(type);
           setCombatState(CombatState.ENEMY_WINDUP);
-          setEnemy(e => ({ ...e, state: 'IDLE' })); // Visual state handled by CombatState.WINDUP in GameScene
+          setEnemy(e => ({ ...e, state: 'IDLE' })); // Visual state handled in GameScene
           
           if (type === AttackType.PERILOUS_SWEEP) playSound('PERILOUS');
 
@@ -210,17 +208,21 @@ const App: React.FC = () => {
               // If enemy was posture broken during windup, stop.
               if (stateRef.current === CombatState.DEATHBLOW_WINDOW) return resolve();
 
-              // 2. STRIKE (Active Frames)
+              // 2. SWING START (Visual)
               setCombatState(CombatState.ENEMY_ATTACKING);
-              setEnemy(e => ({ ...e, state: 'ATTACK' })); // Triggers the swing animation
+              setEnemy(e => ({ ...e, state: 'ATTACK' })); 
 
+              // The weapon is now moving towards the player.
+              // Damage/Resolution occurs exactly when the animation ends (At impact).
+              
               setTimeout(() => {
                  resolveHit(type);
                  
                  // 3. RECOVERY
+                 // Allow a small frame after hit where things settle before next action
                  setTimeout(() => {
                     resolve();
-                 }, GAME_CONFIG.TIMING.ATTACK_DURATION);
+                 }, 300); // Short recovery after swing finishes
                  
               }, GAME_CONFIG.TIMING.ATTACK_DURATION);
 
@@ -261,7 +263,9 @@ const App: React.FC = () => {
                msg = "Air Hit!";
            }
            else if (isBlocking) {
-               // Parry window is generous but requires button press relatively recently
+               // Parry Window check
+               // If blockDuration is small, it means we just pressed it.
+               // Since we want to allow parrying "up to 0.5s before impact", we check if block started recently.
                if (blockDuration < GAME_CONFIG.PARRY_WINDOW_MS) {
                    setEnemy(e => ({ 
                        ...e, 
@@ -317,7 +321,7 @@ const App: React.FC = () => {
   const triggerDeathblowWindow = () => {
        setCombatState(CombatState.DEATHBLOW_WINDOW);
        setEnemy(e => ({...e, posture: e.maxPosture}));
-       playSound('PERILOUS'); // Re-using heavy sound for impact
+       playSound('PERILOUS');
   };
 
   // --- Input Handlers ---
@@ -351,8 +355,8 @@ const App: React.FC = () => {
         }
 
         // --- ATTACK LOGIC ---
-        // 1. Counter Hit (During Windup or Recovery) - Always Hits
-        if (combatState === CombatState.ENEMY_WINDUP || combatState === CombatState.ENEMY_RECOVERING) {
+        // 1. Counter Hit (During Windup) - Interrupt
+        if (combatState === CombatState.ENEMY_WINDUP) {
              setEnemy(e => ({ 
                 ...e, 
                 hp: e.hp - GAME_CONFIG.DAMAGE.LIGHT_ATTACK, 
@@ -390,10 +394,7 @@ const App: React.FC = () => {
                 addLog("Slash!", 'info');
                 playSound('HIT');
             }
-        } else {
-            // Enemy Attacking (Trading or invulnerable frames)
-             addLog("Clash!", 'info');
-        }
+        } 
         
         // Check Deathblow Condition (HP <= 0 OR Posture Break)
         if (enemyRef.current.hp <= 0 || enemyRef.current.posture >= enemyRef.current.maxPosture) {

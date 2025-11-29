@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AttackType, CombatState, EntityStats } from '../types';
+import { GAME_CONFIG } from '../constants';
 
 interface GameSceneProps {
   combatState: CombatState;
@@ -44,7 +45,7 @@ const PlayerSprite = ({ state, actionEffect }: { state: string; actionEffect?: s
 
   if (isAttacking) {
       armRotation = 'rotate-[110deg]'; 
-      armTransition = 'duration-150 ease-out'; // Fast swing
+      armTransition = 'duration-150 ease-out'; // Fast swing for player
   } else if (isDeflecting) {
       armRotation = '-rotate-[45deg]';
       armTransition = 'duration-75 ease-out'; // Instant block
@@ -53,7 +54,7 @@ const PlayerSprite = ({ state, actionEffect }: { state: string; actionEffect?: s
   return (
     <div className={`relative w-24 h-40 transition-transform duration-200
          ${isDead ? 'opacity-50 grayscale rotate-90 translate-y-20' : ''}
-         ${isJumping ? 'animate-[jump-arc_0.7s_ease-in-out]' : ''}
+         ${isJumping ? 'animate-[jump-arc_0.8s_ease-in-out]' : ''}
     `}>
         
         {/* Scarf (Wind effect) */}
@@ -107,20 +108,25 @@ const EnemySprite = ({ state, combatState }: { state: string, combatState: Comba
 
     // Arm Animation Logic
     let armRotation = 'rotate-[25deg]'; // Idle stance
-    let armTransition = 'duration-700 ease-in-out'; // Idle breathing
+    let armTransitionTime = '700ms'; 
+    let armTimingFunction = 'ease-in-out';
 
     if (isWindup) {
-        // Telegraph: Raise weapon HIGH and BACK
-        armRotation = 'rotate-[-60deg]'; 
-        armTransition = 'duration-[800ms] ease-in-out'; // Slow, deliberate raise
+        // Telegraph: Raise weapon HIGH and BACK slowly
+        armRotation = 'rotate-[-80deg] translate-y-[-10px]'; 
+        armTransitionTime = `${GAME_CONFIG.TIMING.WINDUP_BASE * 0.8}ms`; // Use most of the windup time to raise
+        armTimingFunction = 'cubic-bezier(0.2, 0, 0.4, 1)';
     } else if (isAttacking) {
-        // Attack: Swing DOWN forcefully
-        armRotation = 'rotate-[130deg]';
-        armTransition = 'duration-[300ms] cubic-bezier(0, 0, 0.2, 1)'; // Fast snap
+        // Attack: Swing DOWN to impact
+        armRotation = 'rotate-[140deg] translate-x-[20px]';
+        // The swing takes exactly ATTACK_DURATION to complete
+        armTransitionTime = `${GAME_CONFIG.TIMING.ATTACK_DURATION}ms`; 
+        armTimingFunction = 'cubic-bezier(0.1, 0, 0.2, 1)'; // Accelerate at start, impact at end
     } else if (isDeflecting) {
-        // Deflect: Brace weapon horizontally
+        // Deflect: Brace weapon
         armRotation = 'rotate-[-20deg] translate-x-4';
-        armTransition = 'duration-100 ease-out';
+        armTransitionTime = '100ms';
+        armTimingFunction = 'ease-out';
     }
 
     return (
@@ -151,13 +157,16 @@ const EnemySprite = ({ state, combatState }: { state: string, combatState: Comba
               </div>
   
               {/* Giant Spear/Naginata */}
-              <div className={`absolute top-10 left-4 w-24 h-24 pointer-events-none origin-top-right transition-transform ${armTransition} scale-x-[-1] ${armRotation}`}>
+              <div 
+                className={`absolute top-10 left-4 w-24 h-24 pointer-events-none origin-top-right scale-x-[-1] ${armRotation}`}
+                style={{ transition: `transform ${armTransitionTime} ${armTimingFunction}` }}
+              >
                   {/* Arm */}
                   <div className="w-14 h-5 absolute top-0 right-0 origin-right rounded-full bg-red-900 border border-black"></div>
                   {/* Weapon Shaft */}
                   <div className="absolute right-12 top-[-40px] w-3 h-64 bg-orange-900 border border-black origin-bottom transform rotate-[25deg]">
                       {/* Blade */}
-                      <div className="absolute top-[-40px] left-[-2px] w-6 h-24 bg-gray-200 clip-path-blade border border-gray-400"></div>
+                      <div className="absolute top-[-40px] left-[-2px] w-6 h-32 bg-gray-200 clip-path-blade border border-gray-400"></div>
                   </div>
               </div>
           </div>
@@ -177,25 +186,19 @@ export const GameScene: React.FC<GameSceneProps> = ({
 
   // Spark Logic
   useEffect(() => {
-    // Player Deflecting Enemy
     if (playerActionEffect === 'PARRY') {
         const id = Date.now();
         setSparks(p => [...p, { id, x: '50%', y: '60%', color: 'yellow' }]);
         setTimeout(() => setSparks(p => p.filter(s => s.id !== id)), 300);
     }
-    // Player Getting Hit
     if (isPlayerHit) {
         const id = Date.now();
         setSparks(p => [...p, { id, x: '45%', y: '50%', color: 'red' }]);
         setTimeout(() => setSparks(p => p.filter(s => s.id !== id)), 300);
     }
-    // Player Attacking Logic handled in App.tsx mainly, but visual trigger:
-    if (playerActionEffect === 'ATTACK') {
-        // This is generic swing effect, impact sparks are determined by hit result
-    }
   }, [playerActionEffect, isPlayerHit]);
 
-  // Listen for enemy hit/block states to spawn sparks on the enemy
+  // Listen for enemy hit/block states
   useEffect(() => {
       if (enemy.state === 'HIT') {
           const id = Date.now() + Math.random();
@@ -222,6 +225,7 @@ export const GameScene: React.FC<GameSceneProps> = ({
       <div className="absolute bottom-40 left-0 right-0 h-32 bg-black opacity-40 blur-xl" />
       <div className="absolute bottom-0 w-full h-24 bg-gradient-to-t from-black to-slate-900/0 border-t border-slate-800/50" />
       
+      {/* Dynamic Background Elements */}
       <div className="absolute inset-0 opacity-30 pointer-events-none">
           <div className="absolute top-10 left-10 w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
           <div className="absolute top-40 right-20 w-1 h-1 bg-orange-500 rounded-full animate-ping delay-700"></div>
