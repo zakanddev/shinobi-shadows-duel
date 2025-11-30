@@ -9,9 +9,11 @@ import {
   EntityStats, 
   AttackType, 
   PlayerAction, 
-  GameLog 
+  GameLog,
+  AppMode,
+  Theme
 } from './types';
-import { GAME_CONFIG, BOSS_NAMES, BOSS_PATTERNS, AttackPattern } from './constants';
+import { GAME_CONFIG, BOSS_PATTERNS, AttackPattern, THEME_DATA } from './constants';
 
 // Initial states
 const initialPlayer: EntityStats = {
@@ -31,7 +33,12 @@ const initialEnemy: EntityStats = {
 };
 
 const App: React.FC = () => {
-  // --- State ---
+  // --- App State ---
+  const [appMode, setAppMode] = useState<AppMode>(AppMode.MENU);
+  const [selectedTheme, setSelectedTheme] = useState<Theme>(Theme.SAMURAI);
+  const [highScore, setHighScore] = useState<number>(0);
+
+  // --- Game State ---
   const [player, setPlayer] = useState<EntityStats>(initialPlayer);
   const [enemy, setEnemy] = useState<EntityStats>(initialEnemy);
   const [combatState, setCombatState] = useState<CombatState>(CombatState.IDLE);
@@ -45,7 +52,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<GameLog[]>([]);
   const [showDeathScreen, setShowDeathScreen] = useState(false);
   const [bossIndex, setBossIndex] = useState(0);
-  const [bossName, setBossName] = useState(BOSS_NAMES[0]);
+  const [bossName, setBossName] = useState("");
   const [advice, setAdvice] = useState<string>("");
   const [deathCount, setDeathCount] = useState(0);
 
@@ -56,11 +63,26 @@ const App: React.FC = () => {
   const blockStartRef = useRef<number>(0);
   const isBlockingRef = useRef(false);
   const isProcessingComboRef = useRef(false);
+  const appModeRef = useRef(appMode);
 
   // Sync refs
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => { enemyRef.current = enemy; }, [enemy]);
   useEffect(() => { stateRef.current = combatState; }, [combatState]);
+  useEffect(() => { appModeRef.current = appMode; }, [appMode]);
+
+  // Load High Score
+  useEffect(() => {
+    const stored = localStorage.getItem('ronin_highscore');
+    if (stored) setHighScore(parseInt(stored));
+  }, []);
+
+  const saveHighScore = (score: number) => {
+      if (score > highScore) {
+          setHighScore(score);
+          localStorage.setItem('ronin_highscore', score.toString());
+      }
+  };
 
   // --- Audio / Haptics ---
   const playSound = (type: 'CLASH' | 'HIT' | 'DEATHBLOW' | 'PERILOUS') => {
@@ -80,7 +102,18 @@ const App: React.FC = () => {
     setLogs(prev => [{ message: msg, type, timestamp: Date.now() }, ...prev].slice(3));
   };
 
-  const resetGame = async () => {
+  const startGame = () => {
+    setAppMode(AppMode.GAME);
+    setBossIndex(0);
+    resetMatch(0);
+  };
+
+  const quitGame = () => {
+      // Return to menu
+      setAppMode(AppMode.MENU);
+  };
+
+  const resetMatch = async (idx: number) => {
     setPlayer(initialPlayer);
     setEnemy(initialEnemy);
     setCombatState(CombatState.IDLE);
@@ -88,23 +121,28 @@ const App: React.FC = () => {
     setOverlayMessage('');
     setSubMessage('');
     setAdvice('');
+    setLogs([]);
     isProcessingComboRef.current = false;
     
+    // Set Boss Name based on Theme
+    const themeConfig = THEME_DATA[selectedTheme];
+    const name = themeConfig.bossNames[idx % themeConfig.bossNames.length] || "Unknown Warlord";
+    setBossName(name);
+
     // Taunt
-    const taunt = await getBossTaunt(bossName);
-    addLog(`${bossName}: "${taunt}"`, 'system');
+    const taunt = await getBossTaunt(name);
+    addLog(`${name}: "${taunt}"`, 'system');
   };
 
   const nextBoss = () => {
-    const nextIdx = (bossIndex + 1) % BOSS_NAMES.length;
+    const nextIdx = bossIndex + 1;
     setBossIndex(nextIdx);
-    setBossName(BOSS_NAMES[nextIdx]);
     
     // Increase enemy stats slightly
-    initialEnemy.maxHp += 50;
-    initialEnemy.maxPosture += 20;
+    initialEnemy.maxHp = GAME_CONFIG.ENEMY_MAX_HP + (nextIdx * 50);
+    initialEnemy.maxPosture = GAME_CONFIG.ENEMY_MAX_POSTURE + (nextIdx * 20);
     
-    resetGame();
+    resetMatch(nextIdx);
   };
 
   const handlePlayerDeath = async (reason: string) => {
@@ -112,6 +150,10 @@ const App: React.FC = () => {
     setPlayer(p => ({ ...p, state: 'DEAD' }));
     setShowDeathScreen(true);
     setDeathCount(p => p + 1);
+    
+    // Save Highscore (Boss Index = Number of defeats)
+    saveHighScore(bossIndex);
+
     const adviceText = await getCombatAdvice(0, Math.round((enemyRef.current.hp / enemyRef.current.maxHp) * 100), deathCount + 1, reason);
     setAdvice(adviceText);
   };
@@ -119,13 +161,14 @@ const App: React.FC = () => {
   const handleVictory = () => {
     setCombatState(CombatState.VICTORY);
     setEnemy(e => ({ ...e, state: 'DEAD' }));
-    setOverlayMessage('ENEMY DEFEATED');
-    setSubMessage('Shinobi Execution');
+    setOverlayMessage('VICTORY');
+    setSubMessage('Execution Performed');
   };
 
   // --- Game Loop (Posture & Recovery) ---
   useEffect(() => {
     const loop = setInterval(() => {
+        if (appModeRef.current !== AppMode.GAME) return;
         if (combatState === CombatState.VICTORY || combatState === CombatState.DEFEAT) return;
 
         // Posture Recovery
@@ -140,15 +183,15 @@ const App: React.FC = () => {
 
     }, 1000 / 60);
     return () => clearInterval(loop);
-  }, [combatState]);
+  }, [combatState, appMode]);
 
   // --- Enemy AI & Combo System ---
   useEffect(() => {
+    if (appMode !== AppMode.GAME) return;
     if (combatState === CombatState.VICTORY || combatState === CombatState.DEFEAT) return;
 
     const checkAttack = setInterval(() => {
         if (combatState === CombatState.IDLE && !isProcessingComboRef.current) {
-            // Chance to attack depending on how aggressive we want the AI
             if (Math.random() > 0.4) {
                 startEnemyCombo();
             }
@@ -156,7 +199,7 @@ const App: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(checkAttack);
-  }, [combatState, bossIndex]);
+  }, [combatState, bossIndex, appMode]);
 
 
   const startEnemyCombo = async () => {
@@ -169,11 +212,10 @@ const App: React.FC = () => {
       for (let i = 0; i < pattern.length; i++) {
           const move = pattern[i];
 
-          // Check if game ended mid-combo
+          // Check interruption
           if (stateRef.current === CombatState.VICTORY || stateRef.current === CombatState.DEFEAT) break;
 
           if (move === 'DELAY') {
-              // Pause between hits
               await new Promise(r => setTimeout(r, GAME_CONFIG.TIMING.COMBO_DELAY));
               continue;
           }
@@ -181,49 +223,39 @@ const App: React.FC = () => {
           const isSweep = move === 'SWEEP';
           await executeAttackStep(isSweep ? AttackType.PERILOUS_SWEEP : AttackType.NORMAL);
           
-          // Small breathing room between combo hits if not explicit delay
           await new Promise(r => setTimeout(r, 200));
       }
 
-      setCombatState(CombatState.IDLE);
-      setEnemy(e => ({ ...e, state: 'IDLE' }));
+      if (stateRef.current !== CombatState.DEFEAT && stateRef.current !== CombatState.VICTORY) {
+          setCombatState(CombatState.IDLE);
+          setEnemy(e => ({ ...e, state: 'IDLE' }));
+      }
       isProcessingComboRef.current = false;
   };
 
   const executeAttackStep = (type: AttackType): Promise<void> => {
       return new Promise((resolve) => {
-          // 1. TELEGRAPH (Windup) - Player sees this and prepares
           setCurrentAttackType(type);
           setCombatState(CombatState.ENEMY_WINDUP);
-          setEnemy(e => ({ ...e, state: 'IDLE' })); // Visual state handled in GameScene
+          setEnemy(e => ({ ...e, state: 'IDLE' })); 
           
           if (type === AttackType.PERILOUS_SWEEP) playSound('PERILOUS');
 
-          // The windup duration depends on boss level (higher level = slightly faster windups)
           const speedMod = Math.min(bossIndex * 50, 300); 
           const windupTime = Math.max(GAME_CONFIG.TIMING.WINDUP_FAST, GAME_CONFIG.TIMING.WINDUP_BASE - speedMod);
 
           setTimeout(() => {
               if (stateRef.current === CombatState.DEFEAT) return resolve();
-              // If enemy was posture broken during windup, stop.
               if (stateRef.current === CombatState.DEATHBLOW_WINDOW) return resolve();
 
-              // 2. SWING START (Visual)
               setCombatState(CombatState.ENEMY_ATTACKING);
               setEnemy(e => ({ ...e, state: 'ATTACK' })); 
-
-              // The weapon is now moving towards the player.
-              // Damage/Resolution occurs exactly when the animation ends (At impact).
               
               setTimeout(() => {
                  resolveHit(type);
-                 
-                 // 3. RECOVERY
-                 // Allow a small frame after hit where things settle before next action
                  setTimeout(() => {
                     resolve();
-                 }, 300); // Short recovery after swing finishes
-                 
+                 }, 300); 
               }, GAME_CONFIG.TIMING.ATTACK_DURATION);
 
           }, windupTime);
@@ -263,9 +295,6 @@ const App: React.FC = () => {
                msg = "Air Hit!";
            }
            else if (isBlocking) {
-               // Parry Window check
-               // If blockDuration is small, it means we just pressed it.
-               // Since we want to allow parrying "up to 0.5s before impact", we check if block started recently.
                if (blockDuration < GAME_CONFIG.PARRY_WINDOW_MS) {
                    setEnemy(e => ({ 
                        ...e, 
@@ -308,7 +337,6 @@ const App: React.FC = () => {
            setTimeout(() => setPlayer(p => ({...p, state: 'IDLE'})), 500);
        }
        
-       // Check for Deathblow trigger from posture break on Jump Counter/Parry
        if (enemyRef.current.posture >= enemyRef.current.maxPosture) {
            triggerDeathblowWindow();
        }
@@ -326,6 +354,7 @@ const App: React.FC = () => {
 
   // --- Input Handlers ---
   const handleAction = useCallback((action: PlayerAction) => {
+    if (appModeRef.current !== AppMode.GAME) return;
     if (combatState === CombatState.DEFEAT || combatState === CombatState.VICTORY) return;
 
     if (action === PlayerAction.BLOCK) {
@@ -354,8 +383,6 @@ const App: React.FC = () => {
              return;
         }
 
-        // --- ATTACK LOGIC ---
-        // 1. Counter Hit (During Windup) - Interrupt
         if (combatState === CombatState.ENEMY_WINDUP) {
              setEnemy(e => ({ 
                 ...e, 
@@ -367,13 +394,10 @@ const App: React.FC = () => {
             addLog("Counter Slash!", 'info');
             playSound('HIT');
         } 
-        // 2. Neutral Game - Chance to Block
         else if (combatState === CombatState.IDLE) {
-            // Random chance to block based on config
             const willBlock = Math.random() < GAME_CONFIG.ENEMY_DEFLECT_CHANCE;
             
             if (willBlock) {
-                // Enemy Blocks
                 setEnemy(e => ({
                     ...e,
                     posture: e.posture + GAME_CONFIG.POSTURE_DAMAGE.ENEMY_BLOCK,
@@ -383,7 +407,6 @@ const App: React.FC = () => {
                 addLog("Enemy Deflected", 'info');
                 playSound('CLASH');
             } else {
-                // Clean Hit
                 setEnemy(e => ({ 
                     ...e, 
                     hp: e.hp - GAME_CONFIG.DAMAGE.LIGHT_ATTACK, 
@@ -396,12 +419,11 @@ const App: React.FC = () => {
             }
         } 
         
-        // Check Deathblow Condition (HP <= 0 OR Posture Break)
         if (enemyRef.current.hp <= 0 || enemyRef.current.posture >= enemyRef.current.maxPosture) {
             triggerDeathblowWindow();
         }
     }
-  }, [combatState]);
+  }, [combatState, appMode]);
 
   const handleRelease = useCallback((action: PlayerAction) => {
       if (action === PlayerAction.BLOCK) {
@@ -410,8 +432,74 @@ const App: React.FC = () => {
       }
   }, []);
 
+  // --- Render ---
+
+  // 1. MENU SCREEN
+  if (appMode === AppMode.MENU) {
+      const themeInfo = THEME_DATA[selectedTheme];
+      return (
+          <div className={`w-full h-screen ${themeInfo.colors.bg} flex flex-col items-center justify-center p-6 text-white overflow-hidden transition-colors duration-500`}>
+              <h1 className="text-5xl font-black mb-2 text-center tracking-widest uppercase font-serif drop-shadow-lg">{themeInfo.title}</h1>
+              <p className="text-gray-400 mb-12 font-serif italic text-sm">REACTION DUEL</p>
+              
+              {/* High Score */}
+              <div className="mb-10 text-center">
+                  <div className="text-xs text-gray-500 uppercase tracking-widest">High Score</div>
+                  <div className="text-3xl font-bold text-yellow-500">{highScore} Wins</div>
+              </div>
+
+              {/* Theme Selector */}
+              <div className="w-full max-w-sm mb-12">
+                  <div className="flex justify-between items-center mb-4">
+                      <button 
+                         className="p-4 text-gray-500 hover:text-white"
+                         onClick={() => {
+                             const themes = Object.values(Theme);
+                             const idx = themes.indexOf(selectedTheme);
+                             const prev = idx === 0 ? themes.length - 1 : idx - 1;
+                             setSelectedTheme(themes[prev]);
+                         }}
+                      >◀</button>
+                      <div className="text-center">
+                          <div className="text-xs text-gray-400 uppercase">Selected Theme</div>
+                          <div className="text-xl font-bold text-teal-400">{selectedTheme}</div>
+                      </div>
+                      <button 
+                         className="p-4 text-gray-500 hover:text-white"
+                         onClick={() => {
+                            const themes = Object.values(Theme);
+                            const idx = themes.indexOf(selectedTheme);
+                            const next = (idx + 1) % themes.length;
+                            setSelectedTheme(themes[next]);
+                         }}
+                      >▶</button>
+                  </div>
+                  {/* Preview box */}
+                  <div className="h-32 bg-black/30 rounded-lg border border-white/10 flex items-center justify-center">
+                       <p className="text-sm text-gray-400 italic">"{themeInfo.playerTitle} vs {themeInfo.enemyTitlePrefix}..."</p>
+                  </div>
+              </div>
+
+              <button 
+                onClick={startGame}
+                className="w-64 py-4 bg-red-900 hover:bg-red-800 text-white font-bold tracking-[0.2em] border-b-4 border-red-950 active:border-b-0 active:translate-y-1 transition-all rounded shadow-xl"
+              >
+                  START DUEL
+              </button>
+
+              <button 
+                  className="mt-6 text-gray-600 hover:text-gray-400 text-xs uppercase tracking-widest"
+                  onClick={() => alert("To quit, close the browser tab.")}
+              >
+                  Exit Game
+              </button>
+          </div>
+      );
+  }
+
+  // 2. GAME SCREEN
   return (
-    <div className="relative w-full h-screen bg-black text-white overflow-hidden select-none touch-none">
+    <div className={`relative w-full h-screen bg-black text-white overflow-hidden select-none touch-none`}>
       
       {/* 2D Game World */}
       <GameScene 
@@ -421,10 +509,16 @@ const App: React.FC = () => {
         enemy={enemy}
         playerActionEffect={playerActionEffect}
         isPlayerHit={isPlayerHit}
+        theme={selectedTheme}
       />
 
       {/* UI Overlay */}
-      <CombatUI player={player} enemy={enemy} enemyName={bossName} />
+      <CombatUI 
+        player={player} 
+        enemy={enemy} 
+        enemyName={bossName} 
+        playerTitle={THEME_DATA[selectedTheme].playerTitle} 
+      />
 
       {/* Controls */}
       <Controls 
@@ -441,9 +535,14 @@ const App: React.FC = () => {
             <div className="mb-8 max-w-xs text-center">
                 <p className="text-amber-500/80 italic font-serif text-lg">"{advice || '...'}"</p>
             </div>
-            <button onClick={resetGame} className="px-8 py-3 border border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors font-serif tracking-widest uppercase">
-                Rise Again
-            </button>
+            <div className="flex gap-4">
+                <button onClick={() => resetMatch(bossIndex)} className="px-8 py-3 border border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors font-serif tracking-widest uppercase">
+                    Rise Again
+                </button>
+                <button onClick={quitGame} className="px-8 py-3 border border-red-900/30 text-red-800/60 hover:text-red-500 transition-colors font-serif tracking-widest uppercase">
+                    Give Up
+                </button>
+            </div>
         </div>
       )}
 
@@ -452,9 +551,14 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-50 bg-black/80 flex flex-col items-center justify-center pointer-events-auto">
             <h1 className="text-5xl text-center font-black text-yellow-500 mb-2 tracking-widest drop-shadow-lg font-serif">{overlayMessage}</h1>
             <p className="text-gray-400 mb-8 font-serif">{subMessage}</p>
-            <button onClick={nextBoss} className="mt-4 px-8 py-3 bg-red-900/50 hover:bg-red-800 text-white border border-red-700 rounded transition-colors font-serif tracking-widest">
-                NEXT DUEL
-            </button>
+            <div className="flex gap-4">
+                <button onClick={nextBoss} className="px-8 py-3 bg-red-900/50 hover:bg-red-800 text-white border border-red-700 rounded transition-colors font-serif tracking-widest">
+                    NEXT DUEL
+                </button>
+                 <button onClick={quitGame} className="px-6 py-3 border border-gray-700 text-gray-500 hover:text-gray-300 rounded transition-colors font-serif tracking-widest">
+                    REST
+                </button>
+            </div>
         </div>
       )}
 

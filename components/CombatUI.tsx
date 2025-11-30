@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { EntityStats } from '../types';
 
@@ -5,6 +6,7 @@ interface CombatUIProps {
   player: EntityStats;
   enemy: EntityStats;
   enemyName: string;
+  playerTitle: string;
 }
 
 const Bar = ({ 
@@ -37,7 +39,7 @@ const Bar = ({
   );
 };
 
-export const CombatUI: React.FC<CombatUIProps> = ({ player, enemy, enemyName }) => {
+export const CombatUI: React.FC<CombatUIProps> = ({ player, enemy, enemyName, playerTitle }) => {
   return (
     <div className="w-full px-4 py-4 pointer-events-none z-10 flex flex-col justify-between h-full absolute top-0 left-0">
       {/* Top: Enemy Stats */}
@@ -70,7 +72,7 @@ export const CombatUI: React.FC<CombatUIProps> = ({ player, enemy, enemyName }) 
         <div className="mt-1">
             <Bar current={player.posture} max={player.maxPosture} colorClass="bg-yellow-600" isPosture alignRight />
         </div>
-        <div className="text-right text-xs text-gray-400 font-serif mt-1">WOLF</div>
+        <div className="text-right text-xs text-gray-400 font-serif mt-1">{playerTitle}</div>
       </div>
     </div>
   );

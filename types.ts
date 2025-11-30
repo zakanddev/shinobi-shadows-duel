@@ -1,3 +1,4 @@
+
 export enum CombatState {
   IDLE = 'IDLE',
   ENEMY_WINDUP = 'ENEMY_WINDUP', // Enemy is preparing to hit
@@ -35,4 +36,17 @@ export interface GameLog {
   message: string;
   type: 'info' | 'danger' | 'success' | 'system';
   timestamp: number;
+}
+
+export enum AppMode {
+  MENU = 'MENU',
+  GAME = 'GAME',
+}
+
+export enum Theme {
+  SAMURAI = 'SAMURAI',
+  MEDIEVAL = 'MEDIEVAL',
+  INDIAN = 'INDIAN',
+  AZTEC = 'AZTEC',
+  AFRICAN = 'AFRICAN',
 }
