@@ -114,16 +114,32 @@ const PlayerSprite = ({ state, actionEffect, theme }: { state: string; actionEff
             {/* Arms & Weapon */}
             <div className={`absolute top-8 right-2 w-20 h-20 pointer-events-none origin-top-left transition-transform ${armTransition} ${armRotation}`}>
                 {/* Arm */}
-                <div className="w-12 h-3 absolute top-0 left-0 origin-left rounded-full bg-slate-600"></div>
+                <div className="w-12 h-3 absolute top-0 left-0 origin-left rounded-full bg-slate-600 z-20"></div>
+                
                 {/* Shield (African) */}
                 {hasShield && (
                     <div className="absolute top-[-10px] left-[-10px] w-12 h-16 bg-white border-4 border-black rounded-[50%] z-30">
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-black rounded-full"></div>
                     </div>
                 )}
-                {/* Weapon */}
-                <div className={`absolute left-10 top-[-20px] w-2 h-40 ${colors.weapon} border border-gray-400 origin-bottom transform rotate-[15deg] shadow-lg`}>
-                    <div className="absolute bottom-0 left-[-3px] w-5 h-8 bg-black border border-yellow-900"></div>
+
+                {/* Detailed Weapon (Attached to end of arm) */}
+                <div className={`absolute left-10 top-[0px] w-0 h-0 origin-bottom transform rotate-[15deg]`}>
+                     {/* Hilt */}
+                     <div className="absolute bottom-0 left-[-3px] w-3 h-10 bg-black border border-gray-600 rounded-sm z-20">
+                         {/* Hilt pattern */}
+                         <div className="w-full h-1 bg-gray-500 mt-2 opacity-30"></div>
+                         <div className="w-full h-1 bg-gray-500 mt-2 opacity-30"></div>
+                         <div className="w-full h-1 bg-gray-500 mt-2 opacity-30"></div>
+                     </div>
+                     
+                     {/* Guard (Tsuba) */}
+                     <div className="absolute bottom-10 left-[-6px] w-5 h-1 bg-yellow-900 rounded-sm z-30 shadow-sm border border-black"></div>
+                     
+                     {/* Blade */}
+                     <div className={`absolute bottom-10 left-[-2px] w-3 h-40 ${colors.weapon} rounded-t-[100%] rounded-br-sm border-l border-white/50 border-r border-gray-400 z-10 shadow-sm overflow-hidden`}>
+                         <div className="w-[1px] h-full bg-white absolute left-0 opacity-80"></div>
+                     </div>
                 </div>
             </div>
         </div>
@@ -192,17 +208,35 @@ const EnemySprite = ({ state, combatState, theme }: { state: string, combatState
                   <div className="w-5 h-full bg-black rounded-b-lg border-2 border-gray-700"></div>
               </div>
   
-              {/* Weapon */}
+              {/* Weapon Container (Arm + Weapon) */}
               <div 
                 className={`absolute top-10 left-4 w-24 h-24 pointer-events-none origin-top-right scale-x-[-1] ${armRotation}`}
                 style={{ transition: `transform ${armTransitionTime} ${armTimingFunction}` }}
               >
-                  <div className={`w-14 h-5 absolute top-0 right-0 origin-right rounded-full ${colors.enemyAccent} border border-black`}></div>
-                  {/* Shaft / Blade Base */}
-                  <div className="absolute right-12 top-[-40px] w-3 h-64 bg-orange-900 border border-black origin-bottom transform rotate-[25deg]">
-                      {/* Blade */}
-                      <div className={`absolute top-[-40px] left-[-2px] w-6 h-32 ${colors.weapon} clip-path-blade border border-gray-400`}></div>
-                      {theme === Theme.AZTEC && <div className="absolute top-0 left-[-5px] w-4 h-20 bg-black"></div>} {/* Obsidian edge */}
+                  {/* Arm */}
+                  <div className={`w-14 h-5 absolute top-0 right-0 origin-right rounded-full ${colors.enemyAccent} border border-black z-20`}></div>
+                  
+                  {/* Detailed Polearm / Greatsword */}
+                  {/* The weapon is held by the hand which is at 'right-0' of the arm. 
+                      Since the arm is 14 units long, we position the weapon relative to that.
+                  */}
+                  <div className="absolute right-12 top-[-60px] w-0 h-0 origin-bottom transform rotate-[25deg]">
+                       {/* Shaft (Long) */}
+                       <div className="absolute bottom-[-40px] left-[-3px] w-2 h-72 bg-orange-900 border-x border-black z-10"></div>
+                       
+                       {/* Pommel */}
+                       <div className="absolute bottom-[-45px] left-[-5px] w-6 h-6 bg-yellow-700 rounded-full border border-black z-20"></div>
+
+                       {/* Blade Head */}
+                       <div className={`absolute top-[-40px] left-[-8px] w-12 h-40 ${colors.weapon} z-20 clip-path-blade border border-gray-500 shadow-md`}>
+                            {/* Decorative engraving */}
+                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1 h-32 bg-black/10"></div>
+                       </div>
+
+                       {/* Hand Cover (Simulating grip) */}
+                       <div className="absolute bottom-[20px] left-[-6px] w-8 h-8 bg-black rounded-full z-30 opacity-40 blur-sm"></div>
+
+                       {theme === Theme.AZTEC && <div className="absolute top-0 left-[-5px] w-4 h-20 bg-black z-30"></div>} {/* Obsidian edge */}
                   </div>
               </div>
           </div>

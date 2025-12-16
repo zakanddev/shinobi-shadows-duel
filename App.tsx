@@ -171,14 +171,31 @@ const App: React.FC = () => {
         if (appModeRef.current !== AppMode.GAME) return;
         if (combatState === CombatState.VICTORY || combatState === CombatState.DEFEAT) return;
 
-        // Posture Recovery
+        // Posture Recovery Calculation
+        // Recovery slows down quadratically as HP decreases.
+        const playerHpRatio = playerRef.current.hp / playerRef.current.maxHp;
+        const enemyHpRatio = enemyRef.current.hp / enemyRef.current.maxHp;
+
+        // Ensure ratio is at least 0 to avoid NaNs, though HP shouldn't be negative in logic ideally.
+        const safePlayerRatio = Math.max(0, playerHpRatio);
+        const safeEnemyRatio = Math.max(0, enemyHpRatio);
+
+        // Quadratic factor: (HP/Max)^2
+        const playerRecoveryFactor = safePlayerRatio * safePlayerRatio;
+        const enemyRecoveryFactor = safeEnemyRatio * safeEnemyRatio;
+
+        const baseRate = GAME_CONFIG.POSTURE_RECOVERY_RATE;
+        
+        const playerRecovery = (isBlockingRef.current ? baseRate * 2 : baseRate) * playerRecoveryFactor;
+        const enemyRecovery = baseRate * enemyRecoveryFactor;
+
         setPlayer(p => ({
             ...p,
-            posture: Math.max(0, p.posture - (isBlockingRef.current ? GAME_CONFIG.POSTURE_RECOVERY_RATE * 2 : GAME_CONFIG.POSTURE_RECOVERY_RATE))
+            posture: Math.max(0, p.posture - playerRecovery)
         }));
         setEnemy(e => ({
             ...e,
-            posture: Math.max(0, e.posture - GAME_CONFIG.POSTURE_RECOVERY_RATE)
+            posture: Math.max(0, e.posture - enemyRecovery)
         }));
 
     }, 1000 / 60);
