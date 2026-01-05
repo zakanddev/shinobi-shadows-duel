@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -7,57 +8,18 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-      html, body {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        font-family: 'Noto Serif JP', serif;
-        background-color: #0f0f10;
-        color: #e2e8f0;
-        touch-action: manipulation;
-        overflow: hidden; /* Prevent pull-to-refresh on mobile */
-      }
-      .shake {
-        animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
-      }
-      @keyframes shake {
-        10%, 90% { transform: translate3d(-1px, 0, 0); }
-        20%, 80% { transform: translate3d(2px, 0, 0); }
-        30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-        40%, 60% { transform: translate3d(4px, 0, 0); }
-      }
-      .flash-red {
-        animation: flashRed 0.5s ease-out;
-      }
-      @keyframes flashRed {
-        0% { background-color: rgba(220, 38, 38, 0.5); }
-        100% { background-color: transparent; }
-      }
-      .clash-spark {
-        animation: spark 0.2s ease-out forwards;
-      }
-      @keyframes spark {
-        0% { transform: scale(0.5); opacity: 1; }
-        100% { transform: scale(2); opacity: 0; }
-      }
-      
-      @keyframes flow {
-        0% { transform: rotate(0deg) skew(0deg); }
-        50% { transform: rotate(5deg) skew(5deg); }
-        100% { transform: rotate(0deg) skew(0deg); }
-      }
-
-      @keyframes jump-arc {
-        0% { transform: translateY(0); }
-        50% { transform: translateY(-120px); }
-        100% { transform: translateY(0); }
-      }
-      
-      .clip-path-mountains {
-        clip-path: polygon(0% 100%, 20% 60%, 40% 90%, 60% 50%, 80% 80%, 100% 60%, 100% 100%);
-      }
+      html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: #000; }
+      body { font-family: 'Noto Serif JP', serif; touch-action: manipulation; }
+      @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+      @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes jump-arc { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-160px); } }
+      @keyframes spark { 0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; } }
+      .clash-spark { animation: spark 0.25s cubic-bezier(0, 0, 0.2, 1) forwards; }
+      .clip-path-mountains { clip-path: polygon(0% 100%, 15% 40%, 35% 80%, 55% 20%, 75% 70%, 100% 30%, 100% 100%); }
+      .clip-path-leaf { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+      .clip-path-blade { clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%); }
+      .flash-red { animation: flashRed 0.4s ease-out; }
+      @keyframes flashRed { 0% { background: rgba(255,0,0,0.4); } 100% { background: transparent; } }
     </style>
   <script type="importmap">
 {

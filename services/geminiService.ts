@@ -1,12 +1,8 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-const API_KEY = process.env.API_KEY || '';
-
-// Safe initialization
-let ai: GoogleGenAI | null = null;
-if (API_KEY) {
-  ai = new GoogleGenAI({ apiKey: API_KEY });
-}
+// Initialize the Gemini API client directly with the API key from environment variables as per guidelines.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getCombatAdvice = async (
   playerHp: number, 
@@ -14,11 +10,11 @@ export const getCombatAdvice = async (
   deathCount: number,
   lastDeathReason: string
 ): Promise<string> => {
-  if (!ai) return "The spirits are silent. (Missing API Key)";
-
   try {
-    const model = "gemini-2.5-flash";
-    const prompt = `
+    // Using 'gemini-3-flash-preview' for basic text tasks as recommended.
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `
       You are a wise, cryptic, ancient Shinobi master giving advice to a student who just failed in battle (Sekiro style).
       
       Context:
@@ -29,13 +25,10 @@ export const getCombatAdvice = async (
 
       Provide a single, short, atmospheric sentence of advice or philosophical observation about hesitation, rhythm, or defense. 
       Keep it under 20 words. Do not be overly cheerful. Be gritty.
-    `;
-
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
+    `,
     });
 
+    // Access the .text property directly as it is a getter in the new SDK.
     return response.text?.trim() || "Hesitation is defeat.";
   } catch (error) {
     console.error("Gemini API Error:", error);
@@ -44,22 +37,19 @@ export const getCombatAdvice = async (
 };
 
 export const getBossTaunt = async (bossName: string): Promise<string> => {
-  if (!ai) return "Come, Sekiro!";
-
   try {
-    const model = "gemini-2.5-flash";
-    const prompt = `
+    // Using 'gemini-3-flash-preview' for generating text content.
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `
       Generate a short, intimidating battle cry (under 10 words) for a samurai boss named "${bossName}". 
       It should sound feudal, arrogant, and powerful.
-    `;
-
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
+    `,
     });
 
     return response.text?.trim() || "Face me!";
   } catch (error) {
+    console.error("Gemini API Error:", error);
     return "Draw your blade!";
   }
 };
