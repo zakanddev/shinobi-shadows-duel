@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { AttackType, CombatState, EntityStats, Theme } from '../types';
 import { THEME_DATA } from '../constants';
@@ -12,189 +13,180 @@ interface GameSceneProps {
   theme: Theme;
 }
 
-const Block = ({ w, h, color, className = "", style = {} }: { w: number, h: number, color: string, className?: string, style?: React.CSSProperties }) => {
-  const noise = useMemo(() => {
-    return Array(4).fill(0).map(() => ({
-      x: Math.random() * 80,
-      y: Math.random() * 80,
-      opacity: Math.random() * 0.15
-    }));
-  }, []);
-
-  return (
-    <div 
-      className={`relative border border-black/30 ${className}`} 
-      style={{ width: w, height: h, backgroundColor: color, ...style }}
-    >
-      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
-        {noise.map((n, i) => (
-          <div key={i} className="absolute bg-black" style={{ left: `${n.x}%`, top: `${n.y}%`, width: '20%', height: '20%', opacity: n.opacity }} />
-        ))}
-      </div>
-      <div className="absolute inset-0 border-t border-white/20 border-l border-white/10" />
-    </div>
-  );
-};
-
-const SlashArc = ({ isPlayer, type }: { isPlayer: boolean, type: 'ATTACK' | 'PARRY' }) => (
-  <div 
-    className={`absolute top-1/2 ${isPlayer ? 'left-1/2' : 'right-1/2'} -translate-y-1/2 w-48 h-32 pointer-events-none z-50`}
-    style={{ transform: isPlayer ? 'translate(0, -50%)' : 'translate(0, -50%) scaleX(-1)' }}
-  >
-    <svg viewBox="0 0 100 60" className="w-full h-full animate-[ping_0.15s_ease-out_forwards]">
-      <path 
-        d="M10,30 Q50,0 90,30" 
-        fill="none" 
-        stroke={type === 'PARRY' ? '#fff' : '#fff'} 
-        strokeWidth="12" 
-        strokeLinecap="square"
-        strokeDasharray="100"
-        className="drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]"
-      />
-    </svg>
-  </div>
-);
-
-// Fix: Added optional key to props type to resolve TypeScript error on line 191
-const Particle = ({ color, originX, originY }: { color: string, originX: string, originY: string, key?: React.Key }) => {
-  const x = (Math.random() - 0.5) * 300;
-  const y = (Math.random() - 0.5) * 300;
-  return (
-    <div 
-      className="particle" 
-      style={{ 
-        left: originX, top: originY,
-        backgroundColor: color, 
-        '--tw-x': `${x}px`, 
-        '--tw-y': `${y}px` 
-      } as any} 
-    />
-  );
-};
-
-const MinecraftFighter = ({ isPlayer, state, theme, combatState, isClashing }: { isPlayer: boolean, state: string, theme: Theme, combatState?: CombatState, isClashing?: boolean }) => {
-  const c = THEME_DATA[theme].colors;
+const DetailedFighter = ({ isPlayer, state, combatState, isClashing }: { isPlayer: boolean, state: string, combatState?: CombatState, isClashing?: boolean }) => {
   const isAttack = state === 'ATTACK';
   const isHit = state === 'HIT';
   const isDeflect = state === 'DEFLECT';
   const isWindup = combatState === CombatState.ENEMY_WINDUP;
 
-  const mainColor = isPlayer ? c.playerMain.replace('bg-', '#') : c.enemyMain.replace('bg-', '#');
-  const accentColor = isPlayer ? c.playerAccent.replace('bg-', '#') : c.enemyAccent.replace('bg-', '#');
+  // Refined animation transforms
+  let bodyTranslate = isPlayer ? 'translate-x-0' : 'translate-x-0';
+  let weaponRotate = isPlayer ? 'rotate-[15deg]' : 'rotate-[-15deg]';
+  let bodySkew = 'skew-x-0';
 
-  // Dynamic animation values
-  let armRotation = 'rotate-0';
-  let weaponExtend = 'translate-y-0';
-  
   if (isClashing) {
-    armRotation = isPlayer ? '-rotate-[70deg]' : 'rotate-[70deg]';
+    weaponRotate = isPlayer ? 'rotate-[-50deg]' : 'rotate-[50deg]';
+    bodyTranslate = isPlayer ? 'translate-x-4' : '-translate-x-4';
   } else if (isAttack) {
-    armRotation = isPlayer ? '-rotate-[100deg]' : 'rotate-[100deg]';
-    weaponExtend = 'translate-y-[-10px]';
+    weaponRotate = isPlayer ? 'rotate-[-100deg]' : 'rotate-[100deg]';
+    bodySkew = isPlayer ? '-skew-x-6' : 'skew-x-6';
   } else if (isWindup) {
-    armRotation = isPlayer ? 'rotate-[45deg]' : '-rotate-[45deg]';
-  } else if (isDeflect) {
-    armRotation = isPlayer ? '-rotate-[45deg]' : 'rotate-[45deg]';
+    weaponRotate = isPlayer ? 'rotate-[40deg]' : 'rotate-[-40deg]';
+  } else if (isHit) {
+    bodyTranslate = isPlayer ? '-translate-x-12' : 'translate-x-12';
+    bodySkew = isPlayer ? 'skew-x-12' : '-skew-x-12';
   }
 
-  const recoilClass = isHit ? (isPlayer ? 'translate-x-8' : '-translate-x-8') : '';
-
   return (
-    <div className={`relative flex flex-col items-center transition-all duration-100 ${recoilClass} ${state === 'DEAD' ? 'rotate-90 translate-y-20 opacity-50' : ''}`}>
-      {/* Head */}
-      <div className="relative z-30 mb-[-2px]">
-        <Block w={44} h={44} color={isPlayer ? "#ffdbac" : accentColor} />
-      </div>
+    <div className={`relative flex flex-col items-center transition-all duration-150 ${bodyTranslate} ${bodySkew} ${state === 'DEAD' ? 'opacity-30 grayscale blur-[1px]' : ''}`}>
+      {/* High Detail Character Asset (Vector Illustration style) */}
+      <svg width="120" height="240" viewBox="0 0 120 240" className="drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)]">
+        {/* Shadow on ground */}
+        <ellipse cx="60" cy="235" rx="40" ry="10" fill="rgba(0,0,0,0.4)" />
+        
+        {/* Legs / Hakama */}
+        <path d="M40,160 L20,230 L55,230 L60,180 L65,230 L100,230 L80,160 Z" fill={isPlayer ? "#2d3748" : "#4a1c1c"} />
+        <path d="M40,160 L50,225 M80,160 L70,225" stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+        
+        {/* Torso / Kimono */}
+        <path d="M30,80 L90,80 L100,165 L20,165 Z" fill={isPlayer ? "#4a5568" : "#2d0a0a"} />
+        <path d="M60,80 L40,165 M60,80 L80,165" stroke="rgba(255,255,255,0.05)" strokeWidth="4" /> {/* Folds */}
+        <path d="M30,120 Q60,125 90,120" fill="none" stroke={isPlayer ? "#f6ad55" : "#e53e3e"} strokeWidth="6" /> {/* Obi/Belt */}
+        
+        {/* Head / Helmet */}
+        <circle cx="60" cy="50" r="22" fill={isPlayer ? "#1a202c" : "#1a1a1a"} />
+        <path d="M38,50 Q60,30 82,50" fill="none" stroke={isPlayer ? "#718096" : "#c53030"} strokeWidth="4" /> {/* Helmet Rim */}
+        <rect x="52" y="45" width="4" height="6" rx="2" fill={isPlayer ? "#63b3ed" : "#f56565"} /> {/* Eyes */}
+        <rect x="64" y="45" width="4" height="6" rx="2" fill={isPlayer ? "#63b3ed" : "#f56565"} />
+        
+        {/* Arms (Behind for player, forward for enemy) */}
+        <path d="M30,85 L10,130" stroke={isPlayer ? "#2d3748" : "#4a1c1c"} strokeWidth="12" strokeLinecap="round" />
+      </svg>
 
-      {/* Torso */}
-      <div className="relative z-20">
-        <Block w={44} h={60} color={mainColor} />
-      </div>
-
-      {/* Arm & Weapon */}
+      {/* Katana - Sharp and detailed */}
       <div 
-        className={`absolute top-10 ${isPlayer ? 'left-[24px]' : 'right-[24px]'} w-12 h-40 origin-top transition-transform duration-75 ${armRotation}`}
+        className={`absolute top-[90px] ${isPlayer ? 'right-[-30px]' : 'left-[-30px]'} w-12 h-80 origin-top transition-transform duration-100 ${weaponRotate}`}
       >
-        <Block w={16} h={40} color={isPlayer ? "#ffdbac" : mainColor} />
-        {/* The Weapon - now with more reach */}
-        <div className={`absolute bottom-[-10px] left-1/2 -translate-x-1/2 transition-transform ${weaponExtend}`}>
-           <Block w={6} h={80} color={isPlayer ? "#f3f4f6" : "#4b5563"} className="absolute bottom-4 left-1/2 -translate-x-1/2" />
-           <Block w={20} h={6} color="#452a16" className="absolute bottom-4 left-1/2 -translate-x-1/2" />
-        </div>
-      </div>
-
-      {/* Legs */}
-      <div className="flex gap-1 mt-[-2px]">
-        <Block w={20} h={44} color={isPlayer ? "#3c44aa" : "#1a1a1a"} />
-        <Block w={20} h={44} color={isPlayer ? "#3c44aa" : "#1a1a1a"} />
+        <svg width="40" height="240" viewBox="0 0 40 240">
+           {/* Handle (Tsuka) */}
+           <rect x="15" y="0" width="10" height="40" fill="#2d0a0a" rx="2" />
+           <path d="M15,5 L25,15 M15,15 L25,25 M15,25 L25,35" stroke="#d4af37" strokeWidth="1" /> {/* Wrapping */}
+           {/* Guard (Tsuba) */}
+           <rect x="10" y="40" width="20" height="6" fill="#d4af37" rx="1" />
+           {/* Blade (Sharp High-Light) */}
+           <path d="M18,46 L22,46 L24,220 Q20,240 16,220 Z" fill="linear-gradient(to right, #e2e8f0, #fff, #cbd5e0)" />
+           <path d="M18,46 L20,225" stroke="#fff" strokeWidth="0.5" opacity="0.8" />
+           <path d="M22,46 L21,225" stroke="rgba(0,0,0,0.2)" strokeWidth="0.5" />
+        </svg>
       </div>
     </div>
+  );
+};
+
+// Fix for error in file components/GameScene.tsx on line 182: Added key to the props type for Spark to satisfy TS JSX requirements
+const Spark: React.FC<{ color: string, x: string, y: string, key?: React.Key }> = ({ color, x, y }) => {
+  const tx = (Math.random() - 0.5) * 400;
+  const ty = (Math.random() - 0.5) * 400;
+  return (
+    <div 
+      className="spark" 
+      style={{ 
+        left: x, top: y,
+        background: color,
+        '--tw-x': `${tx}px`, 
+        '--tw-y': `${ty}px` 
+      } as any} 
+    />
   );
 };
 
 export const GameScene: React.FC<GameSceneProps> = ({ 
   combatState, player, enemy, playerActionEffect, isPlayerHit, theme, attackType 
 }) => {
-  const [particles, setParticles] = useState<{ id: number, color: string, x: string, y: string }[]>([]);
-  const isPerilous = attackType !== AttackType.NORMAL && (combatState === CombatState.ENEMY_WINDUP || combatState === CombatState.ENEMY_ATTACKING);
-  
-  // A clash occurs if both are in a weapon-active state or a parry just happened
+  const [impacts, setImpacts] = useState<{ id: number, x: string, y: string, color: string }[]>([]);
   const isClashing = playerActionEffect === 'PARRY' || enemy.state === 'DEFLECT';
+
+  // Cherry Blossom generation
+  const petals = useMemo(() => {
+    return Array.from({ length: 15 }).map((_, i) => ({
+      id: i,
+      delay: Math.random() * 8,
+      left: Math.random() * 100,
+      fallX: (Math.random() - 0.5) * 200,
+      scale: 0.5 + Math.random() * 0.8
+    }));
+  }, []);
 
   useEffect(() => {
     if (isPlayerHit || enemy.state === 'HIT' || isClashing) {
       const id = Date.now();
-      const color = isPlayerHit ? '#8b0000' : (isClashing ? '#fbbf24' : '#ffffff');
-      // Particle origin is the center-point between them
-      setParticles(prev => [...prev, { id, color, x: '50%', y: '55%' }]);
-      setTimeout(() => setParticles(prev => prev.filter(p => p.id !== id)), 500);
+      const color = isClashing ? '#d4af37' : (isPlayerHit ? '#ff0000' : '#ffffff');
+      setImpacts(prev => [...prev, { id, x: '50%', y: '50%', color }]);
+      setTimeout(() => setImpacts(prev => prev.filter(p => p.id !== id)), 500);
     }
   }, [isPlayerHit, enemy.state, isClashing]);
 
   return (
-    <div className={`absolute inset-0 w-full h-full bg-[#87ceeb] overflow-hidden transition-all duration-75 ${isClashing ? 'brightness-125' : ''}`}>
-      {/* Sky */}
-      <div className="absolute top-12 left-[15%] w-24 h-12 bg-white/40 shadow-[4px_4px_0_rgba(0,0,0,0.1)]" />
-      <div className="absolute top-8 right-[20%] w-32 h-16 bg-white/30 shadow-[4px_4px_0_rgba(0,0,0,0.1)]" />
-      <div className="absolute top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-yellow-200 shadow-[6px_6px_0_#d97706]" />
+    <div className={`absolute inset-0 w-full h-full bg-[#0d1117] overflow-hidden transition-all duration-300 ${isClashing ? 'brightness-125' : ''}`}>
+      {/* High Detailed Background Layer */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Night Sky with distinct moon */}
+        <div className="absolute top-20 right-20 w-32 h-32 bg-white rounded-full blur-[1px] shadow-[0_0_80px_rgba(255,255,255,0.4)]" />
+        
+        {/* Parallax Mountains (Sharp Vectors) */}
+        <svg className="absolute bottom-40 w-full h-96 opacity-30" viewBox="0 0 1000 400" preserveAspectRatio="none">
+           <path d="M0,400 L200,100 L400,300 L600,50 L850,250 L1000,150 L1000,400 Z" fill="#1a202c" />
+           <path d="M100,400 L300,150 L550,350 L750,100 L1000,300 L1000,400 Z" fill="#2d3748" />
+        </svg>
 
-      {/* Ground */}
-      <div className="absolute bottom-0 w-full h-40 flex flex-col">
-        <div className="w-full h-12 grass-top" />
-        <div className="w-full flex-1 dirt" />
+        {/* Japanese Pagoda Silhouette (Clear) */}
+        <div className="absolute bottom-40 right-10 w-48 h-96 opacity-40 bg-no-repeat bg-bottom" style={{ 
+          backgroundImage: `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200"><path d="M10,200 L90,200 L85,180 L15,180 Z M20,180 L80,180 L75,140 L25,140 Z M30,140 L70,140 L65,100 L35,100 Z M40,100 L60,100 L55,60 L45,60 Z" fill="%23000"/></svg>')`
+        }} />
       </div>
 
-      {/* Combatant Layer - Brought characters closer for actual weapon overlap */}
-      <div className="absolute inset-0 flex items-end justify-center pb-40 gap-4 sm:gap-12">
-        
-        <div className={`relative z-20 ${player.state === 'JUMPING' ? 'animate-[mc-jump_0.8s_ease-in-out]' : ''}`}>
-          <MinecraftFighter isPlayer={true} state={player.state} theme={theme} isClashing={isClashing} />
-          {player.state === 'ATTACK' && <SlashArc isPlayer={true} type="ATTACK" />}
+      {/* Cherry Blossom Petals */}
+      {petals.map(p => (
+        <div key={p.id} className="petal" style={{ 
+          left: `${p.left}%`, 
+          animationDelay: `${p.delay}s`,
+          transform: `scale(${p.scale})`,
+          '--fall-x': `${p.fallX}px`
+        } as any} />
+      ))}
+
+      {/* Ground (Detailed tatami-like or stone surface) */}
+      <div className="absolute bottom-0 w-full h-40 bg-[#171923] border-t-2 border-[#2d3748] shadow-[inset_0_20px_60px_rgba(0,0,0,0.9)]">
+        <div className="w-full h-full opacity-10" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+      </div>
+
+      {/* Combatant Layer */}
+      <div className="absolute inset-0 flex items-end justify-center pb-40 gap-16 sm:gap-40">
+        <div className={`${player.state === 'JUMPING' ? 'translate-y-[-180px]' : ''} transition-transform duration-500 cubic-bezier(0.25, 0.46, 0.45, 0.94)`}>
+          <DetailedFighter isPlayer={true} state={player.state} isClashing={isClashing} />
         </div>
         
-        <div className="relative z-20">
-          <MinecraftFighter isPlayer={false} state={enemy.state} theme={theme} combatState={combatState} isClashing={isClashing} />
-          {enemy.state === 'ATTACK' && <SlashArc isPlayer={false} type="ATTACK" />}
-          
-          {isPerilous && (
-            <div className="absolute top-[-160px] left-1/2 -translate-x-1/2 bg-red-600 p-3 border-4 border-white shadow-xl animate-bounce">
-              <span className="text-white text-5xl font-black">!</span>
+        <div className="relative">
+          <DetailedFighter isPlayer={false} state={enemy.state} combatState={combatState} isClashing={isClashing} />
+          {attackType !== AttackType.NORMAL && (combatState === CombatState.ENEMY_WINDUP || combatState === CombatState.ENEMY_ATTACKING) && (
+            <div className="absolute top-[-220px] left-1/2 -translate-x-1/2 animate-bounce">
+               <span className="text-red-500 text-9xl font-black drop-shadow-[0_0_20px_rgba(255,0,0,0.6)]" style={{ fontFamily: 'Cinzel' }}>!</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Impact Visuals */}
-      {particles.map(p => (
-        <React.Fragment key={p.id}>
-           {[...Array(12)].map((_, i) => (
-             <Particle key={i} color={p.color} originX={p.x} originY={p.y} />
+      {/* Impact Sparks */}
+      {impacts.map(imp => (
+        <React.Fragment key={imp.id}>
+           {Array.from({ length: 15 }).map((_, i) => (
+             <Spark key={i} color={imp.color} x={imp.x} y={imp.y} />
            ))}
         </React.Fragment>
       ))}
 
-      {/* Hit Flash */}
-      {isClashing && <div className="absolute inset-0 bg-white/10 pointer-events-none z-[60]" />}
+      {/* Flash effect on perfect parry */}
+      {isClashing && <div className="absolute inset-0 bg-white/5 pointer-events-none z-[60]" />}
     </div>
   );
 };

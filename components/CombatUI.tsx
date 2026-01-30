@@ -9,72 +9,69 @@ interface CombatUIProps {
   playerTitle: string;
 }
 
-const HeartContainer = ({ hp, maxHp }: { hp: number, maxHp: number }) => {
-  const totalHearts = 10;
-  const currentHearts = (hp / maxHp) * totalHearts;
-  
-  return (
-    <div className="flex gap-1">
-      {[...Array(totalHearts)].map((_, i) => {
-        const isFull = i < Math.floor(currentHearts);
-        const isHalf = !isFull && i < Math.ceil(currentHearts);
-        return (
-          <div key={i} className="relative w-8 h-8">
-            {/* Background Empty Heart */}
-            <div className="absolute inset-0 bg-black opacity-20" style={{ clipPath: 'polygon(50% 10%, 90% 10%, 90% 50%, 50% 90%, 10% 50%, 10% 10%)' }} />
-            {/* Filled Heart */}
-            {(isFull || isHalf) && (
-              <div 
-                className="absolute inset-0 bg-red-600 border-2 border-red-900" 
-                style={{ 
-                  clipPath: 'polygon(50% 10%, 90% 10%, 90% 50%, 50% 90%, 10% 50%, 10% 10%)',
-                  width: isHalf ? '50%' : '100%' 
-                }} 
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
 export const CombatUI: React.FC<CombatUIProps> = ({ player, enemy, enemyName }) => {
   const enemyHpPercent = (enemy.hp / enemy.maxHp) * 100;
+  const playerHpPercent = (player.hp / player.maxHp) * 100;
   const playerPosturePercent = (player.posture / player.maxPosture) * 100;
   const enemyPosturePercent = (enemy.posture / enemy.maxPosture) * 100;
 
   return (
-    <div className="w-full h-full absolute top-0 left-0 pointer-events-none z-10 p-6 flex flex-col justify-between">
-      {/* Top: Boss Bar (Wither/Ender Dragon style) */}
-      <div className="w-full max-w-2xl mx-auto flex flex-col items-center">
-        <h2 className="text-white text-3xl font-black mb-2 uppercase drop-shadow-[2px_2px_#000]">{enemyName}</h2>
-        <div className="w-full h-6 bg-black border-4 border-[#373737] p-1">
-           <div 
-             className="h-full bg-[#aa00aa] transition-all duration-300" 
-             style={{ width: `${enemyHpPercent}%` }} 
-           />
+    <div className="w-full h-full absolute top-0 left-0 pointer-events-none z-10 p-10 flex flex-col justify-between">
+      {/* Top: High Quality Boss HUD */}
+      <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
+        <div className="flex items-center gap-4 mb-2">
+           <div className="w-8 h-8 border-2 border-red-800 rotate-45 flex items-center justify-center">
+             <div className="w-4 h-4 bg-red-600 -rotate-45" />
+           </div>
+           <h2 className="text-white text-3xl font-black tracking-widest uppercase font-cinzel drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
+             {enemyName}
+           </h2>
         </div>
-        {/* Enemy Posture */}
-        <div className="w-full h-2 mt-1 bg-black/40">
-           <div className="h-full bg-yellow-500" style={{ width: `${enemyPosturePercent}%` }} />
+        
+        {/* Boss HP Bar - Multi-layered for detail */}
+        <div className="w-full h-4 bg-black/60 border border-white/10 rounded-sm relative overflow-hidden shadow-2xl">
+           <div 
+             className="h-full bg-gradient-to-r from-red-900 via-red-600 to-red-900 transition-all duration-700 ease-out" 
+             style={{ width: `${enemyHpPercent}%` }} 
+           >
+              <div className="absolute inset-0 bg-white/10 opacity-30 animate-pulse" />
+           </div>
+        </div>
+
+        {/* Enemy Posture (Subtle clear bar) */}
+        <div className="w-1/2 h-1.5 mt-2 bg-black/40 rounded-full border border-white/5">
+           <div 
+             className="h-full bg-amber-400 transition-all duration-300 shadow-[0_0_10px_rgba(251,191,36,0.4)]" 
+             style={{ width: `${enemyPosturePercent}%` }} 
+           />
         </div>
       </div>
 
       {/* Bottom: Player HUD */}
-      <div className="w-full flex flex-col items-center gap-4 mb-36">
-        {/* Heart Bar */}
-        <HeartContainer hp={player.hp} maxHp={player.maxHp} />
+      <div className="w-full max-w-xl mx-auto mb-36 flex flex-col gap-6 items-center">
         
-        {/* Posture Bar (Experience Bar Style) */}
-        <div className="w-full max-w-lg h-4 bg-black border-2 border-[#1e1e1e] p-[2px] relative">
-          <div 
-            className="h-full bg-[#55ff55] transition-all duration-300" 
-            style={{ width: `${100 - playerPosturePercent}%` }} 
-          />
-          <div className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold uppercase tracking-widest">
-            Posture
-          </div>
+        {/* Posture Bar (Experience Style) */}
+        <div className="w-full flex flex-col items-center">
+           <div className="w-full h-2 bg-black/60 border border-white/20 rounded-full overflow-hidden mb-1">
+              <div 
+                className="h-full bg-cyan-400 transition-all duration-300 shadow-[0_0_15px_rgba(34,211,238,0.5)]" 
+                style={{ width: `${100 - playerPosturePercent}%` }} 
+              />
+           </div>
+           <div className="text-[10px] text-cyan-200/60 font-black tracking-[0.5em] uppercase">Concentration</div>
+        </div>
+
+        {/* Player Vitality */}
+        <div className="w-3/4 flex items-center gap-4">
+           <div className="w-10 h-10 glass-ui rounded-full flex items-center justify-center border-white/20">
+              <div className="w-4 h-4 bg-red-500 rounded-sm rotate-45" />
+           </div>
+           <div className="flex-1 h-3 bg-black/60 border border-white/10 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" 
+                style={{ width: `${playerHpPercent}%` }} 
+              />
+           </div>
         </div>
       </div>
     </div>

@@ -4,14 +4,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Ronin: Block Duel</title>
+    <title>Ronin: Spirit Duel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
       :root {
-        --mc-border-light: #ffffff;
-        --mc-border-dark: #373737;
-        --mc-bg: #c6c6c6;
+        --color-gold: #d4af37;
+        --color-blood: #8e0000;
+        --color-ink: #1a1a1a;
       }
       html, body { 
         height: 100%; 
@@ -19,44 +19,65 @@
         padding: 0; 
         overflow: hidden; 
         background: #000; 
-        image-rendering: pixelated;
-        font-family: 'VT323', monospace;
-      }
-      
-      /* Minecraft UI Button Style */
-      .mc-button {
-        background: #c6c6c6;
-        border: 2px solid #000;
-        box-shadow: inset -2px -2px #555, inset 2px 2px #fff;
-        color: #373737;
-        text-shadow: 1px 1px #fff;
-      }
-      .mc-button:active {
-        box-shadow: inset 2px 2px #555, inset -2px -2px #fff;
-        padding-top: 2px;
+        color: #fff;
+        font-family: 'Noto Sans JP', sans-serif;
       }
 
-      /* Animations */
-      @keyframes mc-jump { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-120px); } }
-      @keyframes particle-fly { 
-        0% { transform: translate(0, 0); opacity: 1; }
-        100% { transform: translate(var(--tw-x), var(--tw-y)) rotate(360deg); opacity: 0; }
+      /* Detailed Button Style */
+      .action-button {
+        background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(10,10,10,0.95));
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(255,255,255,0.05);
+        color: #e2e8f0;
+        transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        backdrop-filter: blur(5px);
       }
-      @keyframes mc-swing {
-        0% { transform: rotate(0deg); }
-        50% { transform: rotate(-90deg); }
-        100% { transform: rotate(0deg); }
+      .action-button:active {
+        transform: scale(0.92);
+        border-color: var(--color-gold);
+        background: rgba(40,40,40,0.95);
       }
 
-      .particle {
+      /* Clear Impact Sparks */
+      @keyframes spark-fly {
+        0% { transform: translate(0, 0) scale(1); opacity: 1; }
+        100% { transform: translate(var(--tw-x), var(--tw-y)) scale(0); opacity: 0; }
+      }
+      .spark {
         position: absolute;
-        width: 8px; height: 8px;
-        animation: particle-fly 0.5s ease-out forwards;
+        width: 4px; height: 4px;
+        background: #fff;
+        box-shadow: 0 0 10px #fff, 0 0 20px var(--color-gold);
+        border-radius: 50%;
+        animation: spark-fly 0.4s ease-out forwards;
       }
 
-      /* Environment */
-      .grass-top { background: #5da341; box-shadow: inset 0 -4px #4a8234; }
-      .dirt { background: #79553a; background-image: radial-gradient(#63452e 10%, transparent 10%); background-size: 8px 8px; }
+      /* Detailed Petals */
+      @keyframes petal-fall {
+        0% { transform: translate(0, -10%) rotate(0deg); opacity: 0; }
+        10% { opacity: 1; }
+        100% { transform: translate(var(--fall-x), 110vh) rotate(720deg); opacity: 0; }
+      }
+      .petal {
+        position: absolute;
+        width: 12px; height: 16px;
+        background: #ffb7c5;
+        border-radius: 100% 10% 100% 10%;
+        opacity: 0.8;
+        pointer-events: none;
+        animation: petal-fall 8s linear infinite;
+        z-index: 5;
+      }
+
+      /* Glassmorphism UI */
+      .glass-ui {
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      }
 
       * { -webkit-tap-highlight-color: transparent; }
     </style>

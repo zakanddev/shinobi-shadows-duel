@@ -9,11 +9,10 @@ import {
   EntityStats, 
   AttackType, 
   PlayerAction, 
-  GameLog,
   AppMode,
   Theme
 } from './types';
-import { GAME_CONFIG, BOSS_PATTERNS, THEME_DATA } from './constants';
+import { GAME_CONFIG, THEME_DATA } from './constants';
 
 const initialPlayer: EntityStats = {
   hp: GAME_CONFIG.PLAYER_MAX_HP,
@@ -33,7 +32,7 @@ const initialEnemy: EntityStats = {
 
 const App: React.FC = () => {
   const [appMode, setAppMode] = useState<AppMode>(AppMode.MENU);
-  const [selectedTheme, setSelectedTheme] = useState<Theme>(Theme.SAMURAI);
+  const [selectedTheme] = useState<Theme>(Theme.SAMURAI);
   const [highScore, setHighScore] = useState<number>(0);
 
   const [player, setPlayer] = useState<EntityStats>(initialPlayer);
@@ -63,14 +62,14 @@ const App: React.FC = () => {
   useEffect(() => { appModeRef.current = appMode; }, [appMode]);
 
   useEffect(() => {
-    const stored = localStorage.getItem('ronin_highscore');
+    const stored = localStorage.getItem('spirit_highscore');
     if (stored) setHighScore(parseInt(stored));
   }, []);
 
   const saveHighScore = (score: number) => {
     if (score > highScore) {
       setHighScore(score);
-      localStorage.setItem('ronin_highscore', score.toString());
+      localStorage.setItem('spirit_highscore', score.toString());
     }
   };
 
@@ -94,7 +93,7 @@ const App: React.FC = () => {
     isProcessingComboRef.current = false;
     
     const themeConfig = THEME_DATA[selectedTheme];
-    const name = themeConfig.bossNames[idx % themeConfig.bossNames.length] || "Unknown Warlord";
+    const name = themeConfig.bossNames[idx % themeConfig.bossNames.length] || "The Iron Guardian";
     setBossName(name);
 
     const taunt = await getBossTaunt(name);
@@ -117,7 +116,7 @@ const App: React.FC = () => {
   };
 
   const handleVictory = () => {
-    triggerHitStop(250);
+    triggerHitStop(400); // Massive stop for deathblow
     setCombatState(CombatState.VICTORY);
     setEnemy(e => ({ ...e, state: 'DEAD' }));
   };
@@ -143,20 +142,20 @@ const App: React.FC = () => {
     let hit = false;
     if (type === AttackType.PERILOUS_SWEEP) {
       if (isJumping) {
-        setEnemy(e => ({ ...e, posture: Math.min(e.maxPosture, e.posture + 35) }));
-        triggerHitStop(150);
+        setEnemy(e => ({ ...e, posture: Math.min(e.maxPosture, e.posture + 45) }));
+        triggerHitStop(180);
       } else hit = true;
     } else {
       if (isBlocking) {
-        if (blockDuration < 400) { // Perfect parry window
-          setEnemy(e => ({ ...e, posture: Math.min(e.maxPosture, e.posture + 25), state: 'HIT' }));
+        if (blockDuration < 300) { // Tighter window for "Detailed" feel
+          setEnemy(e => ({ ...e, posture: Math.min(e.maxPosture, e.posture + 35), state: 'HIT' }));
           setPlayer(p => ({ ...p, state: 'DEFLECT' }));
           setPlayerActionEffect('PARRY');
-          triggerHitStop(100);
+          triggerHitStop(120);
           setTimeout(() => setPlayerActionEffect(null), 150);
         } else {
           setPlayer(p => ({ ...p, posture: Math.min(p.maxPosture, p.posture + 15), state: 'DEFLECT' }));
-          triggerHitStop(50);
+          triggerHitStop(40);
         }
       } else hit = true;
     }
@@ -164,15 +163,15 @@ const App: React.FC = () => {
     if (hit) {
       setIsPlayerHit(true);
       setTimeout(() => setIsPlayerHit(false), 300);
-      triggerHitStop(180);
-      setPlayer(p => ({ ...p, hp: Math.max(0, p.hp - 20), state: 'HIT' }));
+      triggerHitStop(200);
+      setPlayer(p => ({ ...p, hp: Math.max(0, p.hp - 30), state: 'HIT' }));
       setTimeout(() => setPlayer(p => ({...p, state: 'IDLE'})), 500);
     }
     
     if (enemyRef.current.posture >= enemyRef.current.maxPosture) {
       setCombatState(CombatState.DEATHBLOW_WINDOW);
     }
-    if (playerRef.current.hp <= 0) handlePlayerDeath("Cut Down");
+    if (playerRef.current.hp <= 0) handlePlayerDeath("Swordmanship was lacking");
   };
 
   const executeAttackStep = (type: AttackType): Promise<void> => {
@@ -189,8 +188,8 @@ const App: React.FC = () => {
             setEnemy(e => ({ ...e, state: 'IDLE' }));
             resolve();
           }, 100);
-        }, 300);
-      }, 700);
+        }, 350);
+      }, 800);
     });
   };
 
@@ -205,7 +204,7 @@ const App: React.FC = () => {
     
     if (action === PlayerAction.JUMP && playerRef.current.state !== 'JUMPING') {
       setPlayer(p => ({ ...p, state: 'JUMPING' }));
-      setTimeout(() => setPlayer(p => ({ ...p, state: 'IDLE' })), 800);
+      setTimeout(() => setPlayer(p => ({ ...p, state: 'IDLE' })), 700);
     }
     
     if (action === PlayerAction.ATTACK) {
@@ -213,19 +212,18 @@ const App: React.FC = () => {
       
       setPlayer(p => ({ ...p, state: 'ATTACK' }));
       
-      // Determine if enemy blocks or gets hit
       if (Math.random() > 0.3) {
-        setEnemy(e => ({ ...e, hp: Math.max(0, e.hp - 10), state: 'HIT' }));
+        setEnemy(e => ({ ...e, hp: Math.max(0, e.hp - 15), state: 'HIT' }));
         triggerHitStop(80);
       } else {
         setEnemy(e => ({ ...e, posture: Math.min(e.maxPosture, e.posture + 10), state: 'DEFLECT' }));
-        triggerHitStop(60);
+        triggerHitStop(50);
       }
 
       setTimeout(() => {
         setPlayer(p => ({ ...p, state: 'IDLE' }));
         setEnemy(e => ({ ...e, state: 'IDLE' }));
-      }, 200);
+      }, 250);
 
       if (enemyRef.current.hp <= 0 || enemyRef.current.posture >= enemyRef.current.maxPosture) {
         setCombatState(CombatState.DEATHBLOW_WINDOW);
@@ -245,7 +243,7 @@ const App: React.FC = () => {
     const interval = setInterval(() => {
       if (!isProcessingComboRef.current) {
         isProcessingComboRef.current = true;
-        executeAttackStep(Math.random() > 0.8 ? AttackType.PERILOUS_SWEEP : AttackType.NORMAL)
+        executeAttackStep(Math.random() > 0.85 ? AttackType.PERILOUS_SWEEP : AttackType.NORMAL)
           .then(() => { 
             if (stateRef.current !== CombatState.VICTORY && stateRef.current !== CombatState.DEFEAT) {
               setCombatState(CombatState.IDLE);
@@ -259,16 +257,19 @@ const App: React.FC = () => {
 
   if (appMode === AppMode.MENU) {
     return (
-      <div className="w-full h-screen bg-[#3a6327] flex flex-col items-center justify-center p-6 text-white overflow-hidden">
-        <h1 className="text-7xl font-black mb-2 text-center drop-shadow-[4px_4px_#000] uppercase">RONIN BLOCKS</h1>
-        <p className="text-xl mb-12 drop-shadow-[2px_2px_#000]">CRAFT YOUR LEGEND</p>
+      <div className="w-full h-screen bg-[#0d1117] flex flex-col items-center justify-center p-10 text-white overflow-hidden relative">
+        <div className="absolute top-20 w-80 h-80 bg-red-900/20 blur-[120px] rounded-full" />
+        <h1 className="text-7xl sm:text-9xl font-black mb-4 text-center tracking-tighter uppercase font-cinzel text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)]">
+          SPIRIT <span className="text-red-600">DUEL</span>
+        </h1>
+        <p className="text-lg mb-16 tracking-[0.8em] opacity-40 uppercase font-light">The Way of the Ronin</p>
         
-        <div className="mb-10 text-center mc-button p-6 w-72">
-          <div className="text-xs uppercase opacity-60">High Score</div>
-          <div className="text-4xl font-bold">{highScore} Wins</div>
+        <div className="mb-16 text-center glass-ui p-8 rounded-2xl w-80">
+          <div className="text-[10px] tracking-widest uppercase opacity-40 mb-2 font-bold">Legendary Wins</div>
+          <div className="text-6xl font-black font-cinzel text-red-500">{highScore}</div>
         </div>
 
-        <button onClick={startGame} className="mc-button w-72 h-20 text-3xl font-bold uppercase">Start Duel</button>
+        <button onClick={startGame} className="action-button w-80 h-24 text-2xl font-black rounded-xl">Draw Blade</button>
       </div>
     );
   }
@@ -276,29 +277,35 @@ const App: React.FC = () => {
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden select-none touch-none">
       <GameScene combatState={combatState} attackType={currentAttackType} player={player} enemy={enemy} playerActionEffect={playerActionEffect} isPlayerHit={isPlayerHit} theme={selectedTheme} />
-      <CombatUI player={player} enemy={enemy} enemyName={bossName} playerTitle="Player" />
+      <CombatUI player={player} enemy={enemy} enemyName={bossName} playerTitle="Wolf" />
       <Controls onAction={handleAction} onRelease={handleRelease} combatState={combatState} />
 
       {showDeathScreen && (
-        <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-8">
-          <h1 className="text-8xl font-black text-red-600 mb-4 drop-shadow-[4px_4px_#000] uppercase">You Died!</h1>
-          <p className="text-xl text-white mb-12 text-center max-w-md">"{advice}"</p>
-          <button onClick={() => resetMatch(bossIndex)} className="mc-button w-64 h-20 text-2xl">Respawn</button>
-          <button onClick={() => setAppMode(AppMode.MENU)} className="mt-4 text-white uppercase opacity-60">Main Menu</button>
+        <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-10 animate-in fade-in duration-1000 backdrop-blur-md">
+          <div className="w-40 h-40 border-8 border-red-900 rounded-full flex items-center justify-center mb-8 rotate-45 shadow-[0_0_50px_rgba(153,27,27,0.5)]">
+            <span className="text-red-600 text-9xl font-black -rotate-45 font-cinzel">死</span>
+          </div>
+          <h1 className="text-5xl font-black text-red-700 mb-6 tracking-widest uppercase font-cinzel">Defeat</h1>
+          <p className="text-xl text-slate-400 mb-20 text-center max-w-lg font-light italic">"{advice}"</p>
+          <button onClick={() => resetMatch(bossIndex)} className="action-button w-80 h-24 text-2xl font-black rounded-xl">Rise Again</button>
+          <button onClick={() => setAppMode(AppMode.MENU)} className="mt-10 text-white/20 text-xs tracking-widest uppercase hover:text-white/60 transition-colors">Return to Menu</button>
         </div>
       )}
 
       {combatState === CombatState.VICTORY && (
-        <div className="absolute inset-0 z-50 bg-black/60 flex flex-col items-center justify-center">
-          <h1 className="text-7xl font-black text-yellow-400 mb-8 drop-shadow-[4px_4px_#000] uppercase">Boss Defeated!</h1>
-          <button onClick={nextBoss} className="mc-button w-64 h-20 text-2xl">Next Boss</button>
+        <div className="absolute inset-0 z-50 bg-white/5 flex flex-col items-center justify-center animate-in zoom-in duration-500 backdrop-blur-sm">
+          <div className="w-full py-20 bg-black/80 border-y-4 border-red-800 flex flex-col items-center">
+             <h1 className="text-8xl font-black text-white mb-4 tracking-[0.4em] uppercase font-cinzel">Shinobi Execution</h1>
+             <p className="text-red-500 tracking-[1em] uppercase text-sm mb-12">Victory Achieved</p>
+             <button onClick={nextBoss} className="action-button w-80 h-24 text-2xl font-black rounded-xl">Next Opponent</button>
+          </div>
         </div>
       )}
 
       {combatState === CombatState.DEATHBLOW_WINDOW && (
-        <div className="absolute z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" onClick={() => handleAction(PlayerAction.ATTACK)}>
-          <div className="w-32 h-32 bg-red-600 border-8 border-white rounded-none flex items-center justify-center shadow-[0_0_30px_#ef4444]">
-            <span className="text-white text-6xl font-black">X</span>
+        <div className="absolute z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-[ping_1s_infinite]" onClick={() => handleAction(PlayerAction.ATTACK)}>
+          <div className="w-32 h-32 flex items-center justify-center">
+             <span className="text-red-600 text-[12rem] font-black font-cinzel drop-shadow-[0_0_40px_rgba(255,0,0,1)]">死</span>
           </div>
         </div>
       )}
